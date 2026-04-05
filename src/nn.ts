@@ -321,8 +321,9 @@ export function backProp(network: Node[][], target: number,
       // Compute the error derivative with respect to each node's output.
       node.outputDer = 0;
       for (let j = 0; j < node.outputs.length; j++) {
-        let output = node.outputs[j];
-        node.outputDer += output.weight * output.dest.inputDer;
+        let link = node.outputs[j];
+        let dest = link.dest;
+        node.outputDer += link.weight * dest.inputDer;
       }
     }
   }

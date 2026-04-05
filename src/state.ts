@@ -147,6 +147,8 @@ export class State {
   problem = Problem.CLASSIFICATION;
   initZero = false;
   hideText = false;
+  /** When true, the Model equations panel is hidden (classroom hide control). */
+  equationPanel_hide = true;
   collectStats = false;
   numHiddenLayers = 1;
   hiddenLayerControls: any[] = [];

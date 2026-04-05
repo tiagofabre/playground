@@ -27,6 +27,8 @@ import {
 } from "./state";
 import {Example2D, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
+import {buildNetworkEquationTex} from "./network-equation";
+import {buildEquationLegendSections} from "./equation-legend";
 import * as d3 from 'd3';
 
 let mainWidth;
@@ -72,6 +74,51 @@ let INPUTS: {[name: string]: InputFeature} = {
   "sinY": {f: (x, y) => Math.sin(y), label: "sin(X_2)"},
 };
 
+function fillEquationLegend(
+    katex: {[key: string]: any}, container: HTMLElement | null,
+    sections: ReturnType<typeof buildEquationLegendSections>): void {
+  if (container == null) {
+    return;
+  }
+  container.innerHTML = "";
+  for (let s = 0; s < sections.length; s++) {
+    let sec = sections[s];
+    let wrap = document.createElement("div");
+    wrap.className = "nn-legend-section";
+    let h = document.createElement("h6");
+    h.className = "nn-legend-section-title";
+    h.textContent = sec.title;
+    wrap.appendChild(h);
+    let ul = document.createElement("ul");
+    ul.className = "nn-legend-list";
+    for (let r = 0; r < sec.rows.length; r++) {
+      let row = sec.rows[r];
+      let li = document.createElement("li");
+      li.className = "nn-legend-row";
+      if (row.symbolTex != null && row.symbolTex !== "") {
+        let sym = document.createElement("span");
+        sym.className = "nn-legend-symbol";
+        if (katex != null && typeof katex.renderToString === "function") {
+          sym.innerHTML = katex.renderToString(row.symbolTex, {
+            throwOnError: false,
+            displayMode: false
+          });
+        } else {
+          sym.textContent = row.symbolTex;
+        }
+        li.appendChild(sym);
+      }
+      let det = document.createElement("span");
+      det.className = "nn-legend-detail";
+      det.textContent = row.detail;
+      li.appendChild(det);
+      ul.appendChild(li);
+    }
+    wrap.appendChild(ul);
+    container.appendChild(wrap);
+  }
+}
+
 let HIDABLE_CONTROLS = [
   ["Show test data", "showTestData"],
   ["Discretize output", "discretize"],
@@ -88,6 +135,7 @@ let HIDABLE_CONTROLS = [
   ["Noise level", "noise"],
   ["Batch size", "batchSize"],
   ["# of hidden layers", "numHiddenLayers"],
+  ["Model equations", "equationPanel"],
 ];
 
 class Player {
@@ -408,13 +456,14 @@ function updateWeightsUI(network: nn.Node[][], container) {
       let node = currentLayer[i];
       for (let j = 0; j < node.inputLinks.length; j++) {
         let link = node.inputLinks[j];
-        container.select(`#link${link.source.id}-${link.dest.id}`)
-            .style({
-              "stroke-dashoffset": -iter / 3,
-              "stroke-width": linkWidthScale(Math.abs(link.weight)),
-              "stroke": colorScale(link.weight)
-            })
-            .datum(link);
+        let sel = container.select(`#link${link.source.id}-${link.dest.id}`);
+        sel.style({
+          "stroke-dasharray": null,
+          "stroke-dashoffset": -iter / 3,
+          "stroke-width": linkWidthScale(Math.abs(link.weight)),
+          stroke: colorScale(link.weight),
+          opacity: 1
+        }).datum(link);
       }
     }
   }
@@ -776,14 +825,14 @@ function drawLink(
 
   // Add an invisible thick link that will be used for
   // showing the weight value on hover.
-  container.append("path")
+  let hover = container.append("path")
     .attr("d", diagonal(datum, 0))
-    .attr("class", "link-hover")
-    .on("mouseenter", function() {
-      updateHoverCard(HoverType.WEIGHT, input, d3.mouse(this));
-    }).on("mouseleave", function() {
-      updateHoverCard(null);
-    });
+    .attr("class", "link-hover");
+  hover.on("mouseenter", function() {
+    updateHoverCard(HoverType.WEIGHT, input, d3.mouse(this));
+  }).on("mouseleave", function() {
+    updateHoverCard(null);
+  });
   return line;
 }
 
@@ -849,8 +898,8 @@ function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
 }
 
 function updateUI(firstStep = false) {
-  // Update the links visually.
-  updateWeightsUI(network, d3.select("g.core"));
+  // Update the links visually (scope to network SVG, not e.g. colormap g.core).
+  updateWeightsUI(network, d3.select("#svg").select("g.core"));
   // Update the bias values visually.
   updateBiasesUI(network);
   // Get the decision boundary of the network.
@@ -884,6 +933,54 @@ function updateUI(firstStep = false) {
   d3.select("#loss-test").text(humanReadable(lossTest));
   d3.select("#iter-number").text(addCommas(zeroPad(iter)));
   lineChart.addDataPoint([lossTrain, lossTest]);
+
+  let eqEl = document.getElementById("nn-equation");
+  let legEl = document.getElementById("nn-equation-legend");
+  let katex = (window as any)["katex"];
+  let eqPanelHidden = state.getHiddenProps().indexOf("equationPanel") >= 0;
+  if (eqEl != null) {
+    if (eqPanelHidden) {
+      eqEl.innerHTML = "";
+      if (legEl != null) {
+        legEl.innerHTML = "";
+      }
+    } else if (network != null) {
+      let inputIds = constructInputIds();
+      let inputSymbols = inputIds.map(id => {
+        let feature = INPUTS[id];
+        return feature != null && feature.label != null ? feature.label : id;
+      });
+      let hiddenKey = getKeyFromValue(activations, state.activation) || "tanh";
+      let outputKey = state.problem === Problem.REGRESSION ? "linear" : "tanh";
+      let tex = buildNetworkEquationTex(
+          network, inputSymbols, hiddenKey, outputKey);
+      if (tex !== "") {
+        if (katex != null && typeof katex.render === "function") {
+          katex.render(tex, eqEl, {displayMode: true, throwOnError: false});
+        } else {
+          eqEl.innerHTML = "";
+        }
+      } else {
+        eqEl.innerHTML = "";
+      }
+      let outSummary = state.problem === Problem.REGRESSION ?
+          "linear / identity (regression)" :
+          "tanh (classification)";
+      let hiddenSummary = hiddenKey === "relu" ? "ReLU on each neuron" :
+          hiddenKey === "tanh" ? "tanh on each neuron" :
+          hiddenKey === "sigmoid" ? "sigmoid σ on each neuron" :
+          "linear (no nonlinearity) on each neuron";
+      fillEquationLegend(katex, legEl, buildEquationLegendSections(
+          network, inputIds, inputSymbols, hiddenSummary, outSummary));
+    } else {
+      eqEl.innerHTML = "";
+      if (legEl != null) {
+        legEl.innerHTML = "";
+      }
+    }
+  } else if (legEl != null) {
+    legEl.innerHTML = "";
+  }
 }
 
 function constructInputIds(): string[] {
@@ -1024,19 +1121,25 @@ function drawDatasetThumbnails() {
   }
 }
 
-function hideControls() {
-  // Set display:none to all the UI elements that are hidden.
+/** Show or hide UI blocks listed in HIDABLE_CONTROLS from URL hide flags. */
+function applyHidableControlVisibility() {
   let hiddenProps = state.getHiddenProps();
-  hiddenProps.forEach(prop => {
-    let controls = d3.selectAll(`.ui-${prop}`);
-    if (controls.size() === 0) {
-      console.warn(`0 html elements found with class .ui-${prop}`);
+  HIDABLE_CONTROLS.forEach(([, id]) => {
+    let hidden = hiddenProps.indexOf(id) >= 0;
+    let controls = d3.selectAll(`.ui-${id}`);
+    if (hidden && controls.size() === 0) {
+      console.warn(`0 html elements found with class .ui-${id}`);
     }
-    controls.style("display", "none");
+    controls.style("display", hidden ? "none" : null);
   });
+}
+
+function hideControls() {
+  applyHidableControlVisibility();
 
   // Also add checkbox for each hidable control in the "use it in classrom"
   // section.
+  let hiddenProps = state.getHiddenProps();
   let hideControls = d3.select(".hide-controls");
   HIDABLE_CONTROLS.forEach(([text, id]) => {
     let label = hideControls.append("label")
@@ -1051,8 +1154,10 @@ function hideControls() {
     }
     input.on("change", function() {
       state.setHideProperty(id, !this.checked);
+      applyHidableControlVisibility();
       state.serialize();
       userHasInteracted();
+      updateUI();
       d3.select(".hide-controls-link")
         .attr("href", window.location.href);
     });

@@ -36,9 +36,11 @@ limitations under the License.
 
   <meta name="author" content="Daniel Smilkov and Shan Carter">
   <title>A Neural Network Playground</title>
+  <link rel="stylesheet" href="katex.min.css" type="text/css">
   <link rel="stylesheet" href="bundle.css" type="text/css">
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet" type="text/css">
   <script src="lib.js"></script>
+  <script src="katex.min.js"></script>
 </head>
 <body>
   <!-- GitHub link -->
@@ -142,6 +144,7 @@ limitations under the License.
 
   <!-- Main Part -->
   <div id="main-part" class="l--page">
+    <div class="main-part-columns">
 
     <!--  Data Column-->
     <div class="column data">
@@ -306,6 +309,16 @@ limitations under the License.
           </label>
         </div>
       </div>
+    </div>
+
+    </div>
+
+    <div id="nn-equation-panel" class="nn-equation-panel ui-equationPanel">
+      <div class="nn-equation-header">
+        <h5 class="nn-equation-title">Model equations</h5>
+      </div>
+      <div id="nn-equation" class="nn-equation"></div>
+      <div id="nn-equation-legend" class="nn-equation-legend" aria-label="Equation symbol reference"></div>
     </div>
 
   </div>
