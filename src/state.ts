@@ -24,7 +24,9 @@ export let activations: {[key: string]: nn.ActivationFunction} = {
   "relu": nn.Activations.RELU,
   "tanh": nn.Activations.TANH,
   "sigmoid": nn.Activations.SIGMOID,
-  "linear": nn.Activations.LINEAR
+  "linear": nn.Activations.LINEAR,
+  "step": nn.Activations.STEP,
+  "gaussian_z": nn.Activations.GAUSSIAN_Z
 };
 
 /** A map between names and regularization functions. */

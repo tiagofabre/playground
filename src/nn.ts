@@ -134,6 +134,22 @@ export class Activations {
     output: x => x,
     der: x => 1
   };
+  public static GAUSSIAN_Z: ActivationFunction = {
+    output: x => Math.exp(-x * x),
+    der: x => {
+      let o = Math.exp(-x * x);
+      return -2 * x * o;
+    }
+  };
+  /**
+   * Binary (Heaviside) step: 1 if pre-activation z >= 0, else 0.
+   * Derivative is 0 (no gradient through z); only layers above step units
+   * receive useful updates from the output error signal.
+   */
+  public static STEP: ActivationFunction = {
+    output: x => (x >= 0 ? 1 : 0),
+    der: () => 0
+  };
 }
 
 /** Build-in regularization functions */
