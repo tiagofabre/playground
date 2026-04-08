@@ -688,6 +688,23 @@ g.column rect {
   letter-spacing: 0.04em;
 }
 
+.nn-equation-block {
+  margin-top: 16px;
+}
+
+.nn-equation-header + .nn-equation-block {
+  margin-top: 0;
+}
+
+.nn-equation-subtitle {
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #555;
+}
+
 .nn-equation {
   width: 100%;
   max-width: 100%;
@@ -700,6 +717,35 @@ g.column rect {
 
 .nn-equation .katex-display {
   margin: 0.5em 0;
+}
+
+.nn-equation-desc {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  font-size: 12px;
+  line-height: 1.5;
+  color: #444;
+}
+
+.nn-equation-desc-list {
+  margin: 0;
+}
+
+.nn-equation-desc-list dt {
+  font-weight: 500;
+  color: #333;
+  margin-top: 10px;
+}
+
+.nn-equation-desc-list dt:first-child {
+  margin-top: 0;
+}
+
+.nn-equation-desc-list dd {
+  margin: 4px 0 0 0;
+  padding: 0;
+  font-weight: 300;
 }
 
 .nn-equation-legend {

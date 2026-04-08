@@ -123,3 +123,53 @@ export function buildEquationLegendSections(
 
   return sections;
 }
+
+/** Notation for training / backprop blocks (shown after diagram symbol sections). */
+export function buildTrainingNotationLegendSection(
+    learningRate: number,
+    regularizationKey: string,
+    regularizationRate: number): LegendSection {
+  let regDetail = regularizationKey === "none" ?
+      "No penalty term; the objective is only the mean squared error." :
+      "Regularization rate slider; matches lambda in the objective and update equations.";
+  return {
+    title: "Training notation",
+    rows: [
+      {
+        symbolTex: "\\eta",
+        detail: "Learning rate (current value " + learningRate.toFixed(3) +
+            ", from the Learning rate control)."
+      },
+      {
+        symbolTex: "\\lambda",
+        detail: regDetail +
+            (regularizationKey !== "none" ?
+                " Current value " + regularizationRate.toFixed(3) + "." :
+                "")
+      },
+      {
+        symbolTex: "z",
+        detail: "Total input into a neuron (bias plus weighted sum of incoming " +
+            "activations). The neuron output is the activation applied to z."
+      },
+      {
+        symbolTex: "\\delta^{(z)}",
+        detail: "Derivative of per-example error E with respect to z; " +
+            "bias updates use the same accumulated quantity as in the code."
+      },
+      {
+        symbolTex: "E",
+        detail: "Per-example squared error (half square of output minus label) " +
+            "used in backprop. Training and test loss in the UI are the mean " +
+            "over N examples."
+      },
+      {
+        symbolTex: "h_1",
+        detail: "In numeric backprop lines, the top hidden neuron in the first " +
+            "hidden column (only when the network has at least one hidden layer). " +
+            "Values are from the last training example in the most recent Step or " +
+            "Play epoch, captured before loss is recomputed over the dataset."
+      }
+    ]
+  };
+}

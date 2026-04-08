@@ -28,7 +28,20 @@ import {
 import {Example2D, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
 import {buildNetworkEquationTex} from "./network-equation";
-import {buildEquationLegendSections} from "./equation-legend";
+import {
+  buildEquationLegendSections,
+  buildTrainingNotationLegendSection
+} from "./equation-legend";
+import {
+  buildObjectiveTex,
+  buildBackpropTex,
+  buildWeightUpdateTex,
+  extractBackpropSnapshot
+} from "./training-equations";
+import {
+  fillEquationPanelGuides,
+  EQUATION_DESC_ELEMENT_IDS
+} from "./equation-guides";
 import * as d3 from 'd3';
 
 let mainWidth;
@@ -116,6 +129,47 @@ function fillEquationLegend(
     }
     wrap.appendChild(ul);
     container.appendChild(wrap);
+  }
+}
+
+function renderKatexDisplay(
+    katex: {[key: string]: any} | undefined,
+    el: HTMLElement | null,
+    tex: string): void {
+  if (el == null) {
+    return;
+  }
+  if (tex === "") {
+    el.innerHTML = "";
+    return;
+  }
+  if (katex != null && typeof katex.render === "function") {
+    katex.render(tex, el, {displayMode: true, throwOnError: false});
+  } else {
+    el.innerHTML = "";
+  }
+}
+
+function clearEquationPanelMath(): void {
+  for (let id of [
+        "nn-equation-forward",
+        "nn-equation-objective",
+        "nn-equation-backprop",
+        "nn-equation-update"]) {
+    let n = document.getElementById(id);
+    if (n != null) {
+      n.innerHTML = "";
+    }
+  }
+  for (let i = 0; i < EQUATION_DESC_ELEMENT_IDS.length; i++) {
+    let d = document.getElementById(EQUATION_DESC_ELEMENT_IDS[i]);
+    if (d != null) {
+      d.innerHTML = "";
+    }
+  }
+  let leg = document.getElementById("nn-equation-legend");
+  if (leg != null) {
+    leg.innerHTML = "";
   }
 }
 
@@ -214,6 +268,8 @@ let colorScale = d3.scale.linear<string, number>()
                      .range(["#f59322", "#e8eaeb", "#0877bd"])
                      .clamp(true);
 let iter = 0;
+/** Captured after each training epoch, before getLoss (see extractBackpropSnapshot). */
+let lastBackpropSnapshot: ReturnType<typeof extractBackpropSnapshot> = null;
 let trainData: Example2D[] = [];
 let testData: Example2D[] = [];
 let network: nn.Node[][] = null;
@@ -934,17 +990,33 @@ function updateUI(firstStep = false) {
   d3.select("#iter-number").text(addCommas(zeroPad(iter)));
   lineChart.addDataPoint([lossTrain, lossTest]);
 
-  let eqEl = document.getElementById("nn-equation");
+  let forwardEl = document.getElementById("nn-equation-forward");
+  let objEl = document.getElementById("nn-equation-objective");
+  let backEl = document.getElementById("nn-equation-backprop");
+  let updEl = document.getElementById("nn-equation-update");
   let legEl = document.getElementById("nn-equation-legend");
   let katex = (window as any)["katex"];
   let eqPanelHidden = state.getHiddenProps().indexOf("equationPanel") >= 0;
-  if (eqEl != null) {
-    if (eqPanelHidden) {
-      eqEl.innerHTML = "";
-      if (legEl != null) {
-        legEl.innerHTML = "";
-      }
-    } else if (network != null) {
+  if (eqPanelHidden) {
+    clearEquationPanelMath();
+  } else {
+    fillEquationPanelGuides(
+        document.getElementById("nn-equation-forward-desc"),
+        document.getElementById("nn-equation-objective-desc"),
+        document.getElementById("nn-equation-backprop-desc"),
+        document.getElementById("nn-equation-update-desc"));
+    let regKey = getKeyFromValue(regularizations, state.regularization) ||
+        "none";
+    renderKatexDisplay(
+        katex, objEl, buildObjectiveTex(regKey, state.regularizationRate));
+    renderKatexDisplay(
+        katex, backEl, buildBackpropTex(lastBackpropSnapshot));
+    renderKatexDisplay(
+        katex, updEl,
+        buildWeightUpdateTex(
+            state.learningRate, state.regularizationRate, regKey));
+
+    if (network != null && forwardEl != null) {
       let inputIds = constructInputIds();
       let inputSymbols = inputIds.map(id => {
         let feature = INPUTS[id];
@@ -954,15 +1026,7 @@ function updateUI(firstStep = false) {
       let outputKey = state.problem === Problem.REGRESSION ? "linear" : "tanh";
       let tex = buildNetworkEquationTex(
           network, inputSymbols, hiddenKey, outputKey);
-      if (tex !== "") {
-        if (katex != null && typeof katex.render === "function") {
-          katex.render(tex, eqEl, {displayMode: true, throwOnError: false});
-        } else {
-          eqEl.innerHTML = "";
-        }
-      } else {
-        eqEl.innerHTML = "";
-      }
+      renderKatexDisplay(katex, forwardEl, tex);
       let outSummary = state.problem === Problem.REGRESSION ?
           "linear / identity (regression)" :
           "tanh (classification)";
@@ -970,16 +1034,19 @@ function updateUI(firstStep = false) {
           hiddenKey === "tanh" ? "tanh on each neuron" :
           hiddenKey === "sigmoid" ? "sigmoid σ on each neuron" :
           "linear (no nonlinearity) on each neuron";
-      fillEquationLegend(katex, legEl, buildEquationLegendSections(
-          network, inputIds, inputSymbols, hiddenSummary, outSummary));
+      let sections = buildEquationLegendSections(
+          network, inputIds, inputSymbols, hiddenSummary, outSummary);
+      sections.push(buildTrainingNotationLegendSection(
+          state.learningRate, regKey, state.regularizationRate));
+      fillEquationLegend(katex, legEl, sections);
     } else {
-      eqEl.innerHTML = "";
+      if (forwardEl != null) {
+        forwardEl.innerHTML = "";
+      }
       if (legEl != null) {
         legEl.innerHTML = "";
       }
     }
-  } else if (legEl != null) {
-    legEl.innerHTML = "";
   }
 }
 
@@ -1013,6 +1080,12 @@ function oneStep(): void {
       nn.updateWeights(network, state.learningRate, state.regularizationRate);
     }
   });
+  if (trainData.length > 0) {
+    lastBackpropSnapshot = extractBackpropSnapshot(
+        network, trainData[trainData.length - 1].label);
+  } else {
+    lastBackpropSnapshot = null;
+  }
   // Compute the loss.
   lossTrain = getLoss(network, trainData);
   lossTest = getLoss(network, testData);
@@ -1048,6 +1121,7 @@ function reset(onStartup=false) {
 
   // Make a simple network.
   iter = 0;
+  lastBackpropSnapshot = null;
   let numInputs = constructInput(0 , 0).length;
   let shape = [numInputs].concat(state.networkShape).concat([1]);
   let outputActivation = (state.problem === Problem.REGRESSION) ?
